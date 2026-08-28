@@ -5,9 +5,9 @@ A lightweight, low-overhead Prometheus metrics exporter written in Go for the Li
 
 ## 🎯 Current Project Scope
 
-While designed with a broad modular architecture to support the full cgroups v2 tree, **the current phase of this project is explicitly focused on unprivileged, user-scoped systemd unit resource metrics (`systemctl --user`).**
+**The current phase of this project is explicitly focused on unprivileged, user-scoped systemd unit resource metrics (`systemctl --user`).**
 
-### Why this exists (The OpenTelemetry Hostmetrics Gap)
+### 🔍 Why this exists (The Gap in OpenTelemetry Hostmetrics)
 
 This exporter acts as a working reference implementation to solve the bottleneck outlined in [OpenTelemetry Collector Contrib - Issue #50035](https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/45912). When running an unprivileged telemetry collector agent inside user-scoped sessions, process-level collection via `/proc` fails due to UID isolation. 
 
