@@ -13,19 +13,22 @@ This exporter acts as a working reference implementation to solve the bottleneck
 
 By leveraging cgroups delegation, this exporter bypasses that limitation—allowing unprivileged user sandboxes to scrape their own `cpu.stat` and `memory.current` footprints without requiring root privileges.
 
-### Features
+### ✨ Features
 
-- Scrape metrics for systemd user units of the current user (`id -u`).
-- Discover user units of the current user (within `app.slice` of the current user's slice)
-- Scrape resource utilization metrics:
-  - cpu: tbd
-  - memory: tbd
+- __User Unit Discovery__:
+  Automagically finds systemd user units for the active user (specifically within the `app.slice` of the current user's slice).
+- __Unprivileged Scraping__:
+  Collects metrics for systemd user units matching the current user's ID (`id -u`).
+- __Resource Utilization Metrics__:
+  Scrapes metrics of compute resources, currently
+  - CPU: `cpu.stat` metrics (tbd)
+  - Memory: `memory.current` metrics (tbd)
 
-### Non-Functional Requirements (NFRs)
+### ⚡ Non-Functional Requirements (NFRs)
 
-#### ⚡ Minimal Kernel I/O
+#### Minimal Kernel I/O
 
-Traditional scrapers execute unbuffered file reads on every live Proemtheus HTTP request.
+Traditional scrapers execute unbuffered file reads on every live Prometheus HTTP request.
 As an option, this exporter could implements an internal background **Ticker-Cache Worker**.
 
 Benefits:
@@ -33,7 +36,7 @@ Benefits:
 * **Kernel Protection:** The `/metrics` endpoint serves from an in-memory map, eliminating kernel-context-switch and disk I/O spikes in high-frequency scraping intervals.
 
 
-## Implementation
+## 🎨 Implementation
 
 - cgroups base path: `/sys/fs/cgroup`
 - user slice of the current user: `/sys/fs/cgroup/user.slice/user-$(id -u).slice/`
