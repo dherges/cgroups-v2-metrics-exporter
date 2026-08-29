@@ -15,9 +15,13 @@ type Config struct {
 }
 
 func GetConfig() Config {
-	hostFlag := flag.String("host", envValue("METRICS_HOST", "HOST", "0.0.0.0"), "The IP address/host to listen on")
-	portFlag := flag.String("port", envValue("METRICS_PORT", "PORT", "9100"), "The port to expose Prometheus metrics on")
-	cgroupPathFlag := flag.String("cgroup-base-path", envValue("METRICS_CGROUP_BASE_PATH", "CGROUP_BASE_PATH", ""), "Override the base cgroups v2 path for testing/Codespaces")
+	hostFlag := flag.String("host", envValue("METRICS_HOST", "HOST", "0.0.0.0"),
+		"The IP address/host to listen on")
+	portFlag := flag.String("port", envValue("METRICS_PORT", "PORT", "9100"),
+		"The port to expose Prometheus metrics on")
+	cgroupPathFlag := flag.String("cgroup-base-path",
+		envValue("METRICS_CGROUP_BASE_PATH", "CGROUP_BASE_PATH", ""),
+		"Override the base cgroups v2 path for testing/Codespaces")
 	flag.Parse()
 
 	return Config{

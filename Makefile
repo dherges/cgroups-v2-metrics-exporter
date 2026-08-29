@@ -8,7 +8,7 @@ LOCAL_HOST ?= 127.0.0.1
 LOCAL_PORT ?= 9100
 
 build:
-	@echo "Compiling..."
+	@echo "=== Compiling $(TARGET) ==="
 	@mkdir -p $(BIN)
 	go build -o $(BIN)/$(TARGET) ./cmd/$(TARGET)
 	@echo "Done! All binaries in $(BIN)/"
@@ -22,7 +22,7 @@ clean:
 	@rm -rf $(BIN)
 
 serve: build
-	@echo "Serving metrics..."
+	@echo "=== Serving Metrics Exporter ==="
 	@export CGROUP_BASE_PATH=$(FAKE_DATA_DIR); \
 	$(BIN)/$(TARGET)
 
@@ -38,3 +38,7 @@ run: build
 	echo "------------------------------------------------"; \
 	curl --silent http://$(LOCAL_HOST):$(LOCAL_PORT)/metrics; \
 	echo "------------------------------------------------"
+
+test:
+	@echo "=== Running Go Tests ==="
+	go test -v ./cmd/$(TARGET)
