@@ -5,9 +5,7 @@ TARGET_DIR=bin
 build:
 	@echo "Compiling..."
 	@mkdir -p $(TARGET_DIR)
-	
 	go build -o $(TARGET_DIR)/cgroups-v2-metrics-exporter ./cmd/cgroups-v2-metrics-exporter
-	
 	@echo "Done! All binaries in ./$(TARGET_DIR)/"
 
 build-windows:
@@ -19,5 +17,5 @@ clean:
 	@rm -rf $(TARGET_DIR)
 
 serve: build
-	@echo "Serving http server..."
-	./bin/cgroups-v2-metrics-exporter server
+	@echo "Serving metrics..."
+	./bin/cgroups-v2-metrics-exporter
