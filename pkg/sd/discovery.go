@@ -13,16 +13,19 @@ type UserCgroupInfo struct {
 	BaseCpath string
 }
 
-func DiscoverUserContext() (*UserCgroupInfo, error) {
+func DiscoverUserContext(customBasePath string) (*UserCgroupInfo, error) {
 	currentUser, err := user.Current()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get current OS user: %w", err)
 	}
 
-	basePath := fmt.Sprintf("/sys/fs/cgroup/user.slice/user-%s.slice/user@%s.service", currentUser.Uid, currentUser.Uid)
+	basePath := customBasePath
+	if basePath == "" {
+		basePath = fmt.Sprintf("/sys/fs/cgroup/user.slice/user-%s.slice/user@%s.service", currentUser.Uid, currentUser.Uid)
+	}
 
-	if _, err := os.Stat(basePath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("cgroups v2 user directory does not exist at %s: %w", basePath, err)
+	if _, err := os.Stat(basePath); err != nil {
+		return nil, fmt.Errorf("cgroups v2 base directory does not exist at %s: %w", basePath, err)
 	}
 
 	return &UserCgroupInfo{
