@@ -6,7 +6,8 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"cgroups-v2-metrics-exporter/pkg/sd"
+	"cgroups-v2-metrics-exporter/pkg/collector"
+	"cgroups-v2-metrics-exporter/pkg/discovery"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -48,14 +49,14 @@ func main() {
 	conf := getConfig()
 
 	log.Printf("Discovering systemd user units...")
-	userInfo, err := sd.DiscoverUserContext(conf.CgroupPath)
+	userInfo, err := discovery.DiscoverUserContext(conf.CgroupPath)
 	if err != nil {
 		log.Fatalf("Failed to initialize systemd user discovery: %v", err)
 	}
 	log.Printf("Discovered environment: UID=%s, BaseCgroupPath=%s", userInfo.UID, userInfo.BaseCpath)
 
 	registry := prometheus.NewRegistry()
-	collector := NewHelloCollector()
+	collector := collector.NewHelloCollector()
 	if err := registry.Register(collector); err != nil {
 		log.Fatalf("Failed to register metrics collector: %v", err)
 	}
@@ -67,29 +68,4 @@ func main() {
 	if err := http.ListenAndServe(conf.ListenAddr, nil); err != nil {
 		log.Fatalf("Metrics Exporter failed to start: %v", err)
 	}
-}
-
-
-// Fake hello prometheus metrics scollector...
-type helloPrometheusCollector struct {
-	helloDesc *prometheus.Desc
-}
-
-func NewHelloCollector() *helloPrometheusCollector {
-	return &helloPrometheusCollector{
-		helloDesc: prometheus.NewDesc(
-			"hello_prometheus_total",
-			"A fake metric to test the skeleton exporter setup.",
-			nil, nil,
-		),
-	}
-}
-
-func (c *helloPrometheusCollector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- c.helloDesc
-}
-
-func (c *helloPrometheusCollector) Collect(ch chan<- prometheus.Metric) {
-	var fakeValue float64 = 1
-	ch <- prometheus.MustNewConstMetric(c.helloDesc, prometheus.CounterValue, fakeValue)
 }
