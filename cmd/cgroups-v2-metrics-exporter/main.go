@@ -1,52 +1,16 @@
 package main
 
 import (
-	"flag"
-	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"cgroups-v2-metrics-exporter/pkg/collector"
 	"cgroups-v2-metrics-exporter/pkg/discovery"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-type Config struct {
-	ListenAddr string
-	CgroupPath string
-}
-
-func getEnvValue(primaryEnvVar string, secondaryEnvVar string, defaultValue string) string {
-	if primaryValue := os.Getenv(primaryEnvVar); primaryValue != "" {
-		return primaryValue
-	}
-	if secondaryValue := os.Getenv(secondaryEnvVar); secondaryValue != "" {
-		return secondaryValue
-	}
-	return defaultValue
-}
-
-func getConfig() Config {
-	envHost := getEnvValue("METRICS_HOST", "HOST", "0.0.0.0")
-	hostFlag := flag.String("host", envHost, "The IP address/host to listen on")
-
-	envPort := getEnvValue("METRICS_PORT", "PORT", "9100")
-	portFlag := flag.String("port", envPort, "The port to expose Prometheus metrics on")
-
-	envCgroupPath := getEnvValue("METRICS_CGROUP_BASE_PATH", "CGROUP_BASE_PATH", "")
-	cgroupPathFlag := flag.String("cgroup-base-path", envCgroupPath, "Override the base cgroups v2 path for testing/Codespaces")
-
-	flag.Parse()
-
-	return Config{
-		ListenAddr: fmt.Sprintf("%s:%s", *hostFlag, *portFlag),
-		CgroupPath: *cgroupPathFlag,
-	}
-}
-
 func main() {
-	conf := getConfig()
+	conf := GetConfig()
 
 	log.Printf("Discovering systemd user units...")
 	userInfo, err := discovery.DiscoverUserContext(conf.CgroupPath)
@@ -62,6 +26,7 @@ func main() {
 	}
 	handlerOpts := promhttp.HandlerOpts{}
 	http.Handle("/metrics", promhttp.HandlerFor(registry, handlerOpts))
+	http.HandleFunc("/", LandingPage)
 
 	// Start http server
 	log.Printf("Starting Metrics Exporter on %s...\n", conf.ListenAddr)
