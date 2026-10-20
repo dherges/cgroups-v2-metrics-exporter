@@ -1,7 +1,9 @@
 cgroups-v2-metrics-exporter
 ===========================
 
-A lightweight, low-overhead Prometheus metrics exporter written in Go for the Linux cgroups v2 unified hierarchy.
+> Like Pod metrics for systemd user sandboxes.
+
+A Prometheus exporter for the cgroups v2 resource usage (CPU, memory, pids, IO) of systemd user units.
 
 
 ## 🚀 Getting Started
