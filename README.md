@@ -14,40 +14,73 @@ Run the cgroups v2 metrics exporter in user land:
 
 Scrape Prometheus metrics at `http://127.0.0.1:9100/metrics`
 
+### Options
+
+| Flag | Environment variables | Default | Description |
+|------|-----------------------|---------|-------------|
+| `--host` | `METRICS_HOST`, `HOST` | `0.0.0.0` | IP address/host to listen on |
+| `--port` | `METRICS_PORT`, `PORT` | `9100` | Port to expose the metrics on |
+| `--cgroup-base-path` | `METRICS_CGROUP_BASE_PATH`, `CGROUP_BASE_PATH` | derived from the process uid | Override the cgroups v2 base directory (testing, Codespaces) |
+
+The flag default is taken from the environment variable, so an explicit flag wins. `METRICS_*` takes precedence over the plain name.
+
+> [!NOTE]
+> The default `0.0.0.0` exposes the unauthenticated metrics on all interfaces. Pass `--host 127.0.0.1` (as above) unless a remote Prometheus needs to scrape it directly.
+
+By default the cgroup base is `/sys/fs/cgroup/user.slice/user-<uid>.slice/user@<uid>.service`, where `<uid>` is the uid the exporter runs as.
+
+### Metrics Series Reference
+
+Units are discovered on every scrape (`app.slice/*.service` of the user manager), so started, stopped and restarted units show up on the next scrape.
+
+All series carry the labels `systemd_user_uid` and `systemd_user_unit`. Extra labels are listed below.
+
+| Metric | Type | Extra label | Source | Description |
+|--------|------|-------------|--------|-------------|
+| `cgroups_v2_cpu_usage_seconds_total` | counter | | `cpu.stat` | CPU time consumed |
+| `cgroups_v2_cpu_periods_total` | counter | | `cpu.stat` | Enforcement periods elapsed |
+| `cgroups_v2_cpu_throttled_periods_total` | counter | | `cpu.stat` | Periods in which the unit was throttled |
+| `cgroups_v2_cpu_throttled_seconds_total` | counter | | `cpu.stat` | Total time the unit was throttled |
+| `cgroups_v2_cpu_limit_cores` | gauge | | `cpu.max` | CPU quota in cores (`CPUQuota=200%` is `2`) |
+| `cgroups_v2_memory_working_set_bytes` | gauge | | `memory.current`, `memory.stat` | Working set, `memory.current` minus `inactive_file` (cAdvisor semantics) |
+| `cgroups_v2_memory_usage_bytes` | gauge | | `memory.current` | Current memory usage |
+| `cgroups_v2_memory_limit_bytes` | gauge | | `memory.max` | Hard limit (`MemoryMax=`) |
+| `cgroups_v2_memory_high_bytes` | gauge | | `memory.high` | Throttle limit (`MemoryHigh=`) |
+| `cgroups_v2_memory_events_total` | counter | `event` | `memory.events` | Memory events: `low`, `high`, `max`, `oom`, `oom_kill`, ... |
+| `cgroups_v2_pids_current` | gauge | | `pids.current` | Processes and threads in the unit |
+| `cgroups_v2_pids_limit` | gauge | | `pids.max` | Task limit (`TasksMax=`) |
+| `cgroups_v2_io_read_bytes_total` | counter | `device` | `io.stat` | Bytes read per block device |
+| `cgroups_v2_io_write_bytes_total` | counter | `device` | `io.stat` | Bytes written per block device |
+| `cgroups_v2_io_read_ops_total` | counter | `device` | `io.stat` | Read operations per block device |
+| `cgroups_v2_io_write_ops_total` | counter | `device` | `io.stat` | Write operations per block device |
+
+`device` is the block device as `major:minor`.
+
+A unit that is missing a file or a controller only loses the series derived from that file. Limits set to `max` (unlimited) are omitted instead of exported with a made-up value. If cgroups v2 or the user manager is not available, `/metrics` still returns HTTP 200 without unit series.
+
 
 ## 🎯 Current Project Scope
 
-**The current phase of this project is explicitly focused on unprivileged, user-scoped systemd unit resource metrics (`systemctl --user`).**
+**Unprivileged, user-scoped systemd unit resource metrics (`systemctl --user`), read straight from cgroups v2.**
 
 ### 💯 What Can You Do with It?
 
-In Kubernetes,
-Pod metrics are collected from [`cAdvisor`](https://github.com/google/cadvisor) (for real-time resource utilization like CPU and memory)
-and [`kube-state-metrics`](https://github.com/kubernetes/kube-state-metrics) (for object metadata and health state).
+In Kubernetes, Pod metrics come from [`cAdvisor`](https://github.com/google/cadvisor) (CPU, memory, ...)
+and [`kube-state-metrics`](https://github.com/kubernetes/kube-state-metrics) (object state).
 
-The `cgroups-v2-metrics-exporter` aims to replicate Pod metrics for systemd user units.
-It enables resource utilization metrics for systemd services that are deployed in user-scoped sandboxes (non-root environmments).
+This exporter replicates the cAdvisor part for systemd user units:
+resource metrics for services running in non-root, user-scoped sandboxes.
 
 ### 🔍 Why It Exists in the First Place
 
-In short: an (intentional) gap in OpenTelemetry `host_metrics` and/or `systemd` receiver.
-
-This exporter acts as a working reference implementation to solve the bottleneck outlined in
+An (intentional) gap in the OpenTelemetry `host_metrics` and `systemd` receivers, see
 [OpenTelemetry Collector Contrib - Issue #50035](https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/45912).
 
-In systemd user-scoped services,
-resource constraints for CPU and memory are implemented by delegating cgroups v2 controllers to the user scope.
+- The `systemd` receiver scrapes unit state (active, failed, ...), not resource usage.
+- The `host_metrics` receiver reads `/proc` and fails in an unprivileged, user-scoped agent.
 
-The `systemd` receiver in the OpenTelemetry Collector is focused on scraping primarily the systemd unit state
-(active, reloading, failed, and so on).
-
-Collecting process-level metrics from `/proc` fails,
-when running the the `host_metrics` receiver in an unprivileged OpenTelemetry Collector agent inside user-scoped sessions (non-root).
-This may (or may not) be intentional due to UID isolation.
-
-This exporter bypasses the limitation at the process level,
-allowing unprivileged user sandboxes to scrape their own compute resource footprints,
-e.g. `cpu.stat` and `memory.current`, without requiring root privileges.
+This exporter reads the user's own cgroup files (`cpu.stat`, `memory.current`, ...) instead,
+which needs no root privileges.
 
 
 ## 👉 Usage Example
