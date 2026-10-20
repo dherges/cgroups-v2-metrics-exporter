@@ -1,8 +1,8 @@
 package main
 
 import (
-	"cgroups-v2-metrics-exporter/pkg/collector"
-	"cgroups-v2-metrics-exporter/pkg/discovery"
+	"cgroups-v2-metrics-exporter/internal/collector"
+	"cgroups-v2-metrics-exporter/internal/discovery"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"log"

@@ -7,8 +7,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	"cgroups-v2-metrics-exporter/pkg/cgroupfs"
-	"cgroups-v2-metrics-exporter/pkg/discovery"
+	"cgroups-v2-metrics-exporter/internal/cgroupfs"
+	"cgroups-v2-metrics-exporter/internal/discovery"
 )
 
 // DiscoverFunc lists the currently running units; see discovery.UserCgroupInfo.Discover.

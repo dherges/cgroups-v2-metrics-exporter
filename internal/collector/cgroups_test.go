@@ -10,7 +10,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 
-	"cgroups-v2-metrics-exporter/pkg/discovery"
+	"cgroups-v2-metrics-exporter/internal/discovery"
 )
 
 const fakeData = "../../fake-data"
