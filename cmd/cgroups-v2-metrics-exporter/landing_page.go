@@ -14,9 +14,12 @@ func LandingPage(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	fmt.Fprint(w, `
-		<!http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<!DOCTYPE html>
 		<html>
-		<head><title>cgroups-v2-metrics-exporter</title></head>
+		<head>
+		<meta charset="utf-8">
+		<title>cgroups-v2-metrics-exporter</title>
+		</head>
 		<body>
 		<h1>cgroups-v2-metrics-exporter</h1>
 		<p><a href="/metrics">Metrics Endpoint</a></p>

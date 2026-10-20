@@ -1,27 +1,41 @@
 package main
 
 import (
-	"log"
-	"net/http"
 	"cgroups-v2-metrics-exporter/pkg/collector"
 	"cgroups-v2-metrics-exporter/pkg/discovery"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"log"
+	"net/http"
 )
 
 func main() {
 	conf := GetConfig()
 
 	log.Printf("Discovering systemd user units...")
-	userInfo, err := discovery.DiscoverUserContext(conf.CgroupPath)
-	if err != nil {
-		log.Fatalf("Failed to initialize systemd user discovery: %v", err)
+	// Resolved on every scrape so the exporter also starts on hosts without cgroups v2 or without a
+	// user manager (it then exports no unit metrics) and recovers once they appear.
+	discover := func() ([]discovery.Unit, error) {
+		userInfo, err := discovery.DiscoverUserContext(conf.CgroupPath)
+		if err != nil {
+			return nil, err
+		}
+		return userInfo.Discover()
 	}
-	log.Printf("Discovered environment: UID=%s, BaseCgroupPath=%s", userInfo.UID, userInfo.BaseCpath)
+	if userInfo, err := discovery.DiscoverUserContext(conf.CgroupPath); err != nil {
+		log.Printf("Warning: no usable cgroups v2 user hierarchy, exporting no unit metrics until it appears: %v", err)
+	} else {
+		log.Printf("Discovered environment: UID=%s, BaseCgroupPath=%s", userInfo.UID, userInfo.BaseCpath)
+		if missing, err := userInfo.MissingControllers(); err != nil {
+			log.Printf("Warning: cannot check delegated cgroup controllers: %v", err)
+		} else if len(missing) > 0 {
+			log.Printf("Warning: controllers %v are not delegated to the user manager (see README: Delegate=cpu memory pids)", missing)
+		}
+	}
 
 	registry := prometheus.NewRegistry()
-	collector := collector.NewHelloCollector()
-	if err := registry.Register(collector); err != nil {
+	cgroupCollector := collector.NewCgroupCollector(discover)
+	if err := registry.Register(cgroupCollector); err != nil {
 		log.Fatalf("Failed to register metrics collector: %v", err)
 	}
 	handlerOpts := promhttp.HandlerOpts{}

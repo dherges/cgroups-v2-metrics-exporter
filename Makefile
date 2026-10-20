@@ -1,4 +1,4 @@
-.PHONY: build clean
+.PHONY: build build-linux-amd64 clean
 
 BIN := ./bin
 FAKE_DATA_DIR := $(PWD)/fake-data
@@ -12,6 +12,12 @@ build:
 	@mkdir -p $(BIN)
 	go build -o $(BIN)/$(TARGET) ./cmd/$(TARGET)
 	@echo "Done! All binaries in $(BIN)/"
+
+# static binary for Linux hosts (x86_64)
+build-linux-amd64:
+	@mkdir -p $(BIN)
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o $(BIN)/$(TARGET)-linux-amd64 ./cmd/$(TARGET)
+	@echo "Done! $(BIN)/$(TARGET)-linux-amd64"
 
 build-windows:
 	GOOS=windows GOARCH=amd64 go build -o $(BIN)/$(TARGET).exe ./cmd/$(TARGET)
@@ -41,4 +47,4 @@ run: build
 
 test:
 	@echo "=== Running Go Tests ==="
-	go test -v ./cmd/$(TARGET)
+	go test -v ./...
