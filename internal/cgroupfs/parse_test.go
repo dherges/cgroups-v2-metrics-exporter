@@ -321,7 +321,7 @@ func TestParseIOStat(t *testing.T) {
 	}
 }
 
-func TestReadM4Fixtures(t *testing.T) {
+func TestReadKeyedLimitAndIOFixtures(t *testing.T) {
 	// fixture-a: real capture.
 	io, err := ReadIOStat(fixtureA)
 	if err != nil || len(io) != 4 {

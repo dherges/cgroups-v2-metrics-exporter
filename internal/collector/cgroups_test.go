@@ -394,9 +394,6 @@ func TestCollectWithoutCgroupsV2(t *testing.T) {
 		t.Errorf("got %v, want only %s = 0", got, discoverySuccess)
 	}
 	// And it still serves a valid exposition.
-	if _, err := prometheus.NewRegistry().Gather(); err != nil {
-		t.Fatal(err)
-	}
 	reg := prometheus.NewRegistry()
 	reg.MustRegister(c)
 	if _, err := reg.Gather(); err != nil {

@@ -147,7 +147,7 @@ func TestDiscover(t *testing.T) {
 				t.Errorf("Discover() names = %v, want %v", got, tt.want)
 			}
 			for _, unit := range units {
-				if unit.UID != "1002" || filepath.Dir(unit.Path) == "" {
+				if unit.UID != "1002" || filepath.Base(unit.Path) != unit.Name {
 					t.Errorf("unexpected unit %+v", unit)
 				}
 			}
