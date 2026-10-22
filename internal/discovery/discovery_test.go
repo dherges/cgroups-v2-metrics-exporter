@@ -70,22 +70,6 @@ func TestDiscoverUserContext(t *testing.T) {
 	}
 }
 
-func TestUnescapeUnitName(t *testing.T) {
-	tests := map[string]string{
-		"fixture-a.service":     "fixture-a.service",
-		`my\x2dapp.service`:     "my-app.service",
-		`a\x2db\x2dc.service`:   "a-b-c.service",
-		`weird\xzz.service`:     `weird\xzz.service`,
-		`slash\x2fname.service`: "slash/name.service",
-		"":                      "",
-	}
-	for in, want := range tests {
-		if got := UnescapeUnitName(in); got != want {
-			t.Errorf("UnescapeUnitName(%q) = %q, want %q", in, got, want)
-		}
-	}
-}
-
 // mkTree creates the given directories (trailing "/") and files below root.
 func mkTree(t *testing.T, root string, paths ...string) {
 	t.Helper()
@@ -132,9 +116,11 @@ func TestDiscover(t *testing.T) {
 			want: []string{"a.service", "b.service"},
 		},
 		{
-			name:  "escaped names are decoded",
-			paths: []string{`app.slice/my\x2dapp.service/`},
-			want:  []string{"my-app.service"},
+			// `a-b.service` and `a\x2db.service` are two units. Unescaping would give both the
+			// label "a-b.service", which Prometheus rejects as a duplicate series.
+			name:  "escaped names are kept, so distinct units stay distinct",
+			paths: []string{`app.slice/a-b.service/`, `app.slice/a\x2db.service/`, `app.slice/my\x2dapp.service/`},
+			want:  []string{`a-b.service`, `a\x2db.service`, `my\x2dapp.service`}, // sorted by byte: '-' < '\'
 		},
 		{
 			name:  "no app.slice falls back to base",

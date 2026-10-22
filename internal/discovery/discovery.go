@@ -6,7 +6,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -28,7 +27,9 @@ type UserCgroupInfo struct {
 
 // Unit is a running systemd user unit found in the cgroup tree.
 type Unit struct {
-	// Name is the unescaped unit name, e.g. "my-app.service".
+	// Name is the cgroup directory name, as systemd escapes it and as `systemctl --user` prints it,
+	// e.g. `my\x2dapp.service`. It is not unescaped: two distinct units can unescape to the same
+	// name, and the result may not be valid UTF-8, neither of which a metric label can hold.
 	Name string
 	// Path is the unit's cgroup directory.
 	Path string
@@ -120,7 +121,7 @@ func (u *UserCgroupInfo) Discover() ([]Unit, error) {
 			return nil, fmt.Errorf("failed to stat unit directory %s: %w", unitPath, err)
 		}
 		units = append(units, Unit{
-			Name: UnescapeUnitName(entry.Name()),
+			Name: entry.Name(),
 			Path: unitPath,
 			UID:  u.UID,
 		})
@@ -128,17 +129,4 @@ func (u *UserCgroupInfo) Discover() ([]Unit, error) {
 	sort.Slice(units, func(i, j int) bool { return units[i].Name < units[j].Name })
 
 	return units, nil
-}
-
-var unitEscape = regexp.MustCompile(`\\x([0-9a-fA-F]{2})`)
-
-// UnescapeUnitName reverses systemd's \xNN escaping, e.g. `my\x2dapp.service` -> "my-app.service".
-func UnescapeUnitName(name string) string {
-	return unitEscape.ReplaceAllStringFunc(name, func(m string) string {
-		b, err := strconv.ParseUint(m[2:], 16, 8)
-		if err != nil {
-			return m
-		}
-		return string([]byte{byte(b)})
-	})
 }
