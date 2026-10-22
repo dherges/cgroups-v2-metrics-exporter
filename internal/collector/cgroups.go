@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io/fs"
 	"log"
+	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -20,8 +21,9 @@ var (
 	deviceLabels = append(append([]string{}, unitLabels...), "device")
 )
 
-// CgroupCollector exposes cgroup v2 metrics of systemd user units. It is stateless: units are
-// discovered and their files are read on every scrape.
+// CgroupCollector exposes cgroup v2 metrics of systemd user units. Its metrics are stateless: units
+// are discovered and their files are read on every scrape. The only state is the last discovery
+// error, kept to log a failure once instead of on every scrape; it never affects the metrics.
 //
 // It tolerates incomplete hosts and units. Every file is read independently, so a missing file (a
 // controller that is not delegated, a unit that stopped after discovery) or an unreadable one only
@@ -30,6 +32,10 @@ var (
 // returns no unit metrics, and cgroups_v2_discovery_success is 0 so that this is visible.
 type CgroupCollector struct {
 	discover DiscoverFunc
+
+	// mu guards lastDiscoveryErr, because Prometheus can scrape concurrently.
+	mu               sync.Mutex
+	lastDiscoveryErr string // text of the last logged discovery error; "" while discovery works
 
 	discoverySuccess *prometheus.Desc
 
@@ -99,8 +105,8 @@ func (c *CgroupCollector) Describe(ch chan<- *prometheus.Desc) {
 
 func (c *CgroupCollector) Collect(ch chan<- prometheus.Metric) {
 	units, err := c.discover()
+	c.logDiscovery(err)
 	if err != nil {
-		log.Printf("Unit discovery failed: %v", err)
 		emit(ch, c.discoverySuccess, prometheus.GaugeValue, 0)
 		return
 	}
@@ -110,6 +116,22 @@ func (c *CgroupCollector) Collect(ch chan<- prometheus.Metric) {
 		c.collectMemory(ch, u)
 		c.collectPids(ch, u)
 		c.collectIO(ch, u)
+	}
+}
+
+// logDiscovery logs a discovery failure when it first appears or its text changes, and one line
+// when discovery works again. Logging every scrape would repeat the same line thousands of times a
+// day on a host that stays broken.
+func (c *CgroupCollector) logDiscovery(err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	switch {
+	case err != nil && err.Error() != c.lastDiscoveryErr:
+		log.Printf("Unit discovery failed: %v", err)
+		c.lastDiscoveryErr = err.Error()
+	case err == nil && c.lastDiscoveryErr != "":
+		log.Printf("Unit discovery recovered")
+		c.lastDiscoveryErr = ""
 	}
 }
 

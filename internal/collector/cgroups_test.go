@@ -1,10 +1,13 @@
 package collector
 
 import (
+	"bytes"
 	"errors"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -163,6 +166,94 @@ func TestRegisters(t *testing.T) {
 }
 
 const discoverySuccess = "cgroups_v2_discovery_success{}"
+
+// captureLog returns what the standard logger wrote since the call.
+func captureLog(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+	t.Cleanup(func() { log.SetOutput(os.Stderr) })
+	return &buf
+}
+
+// A discovery error is logged when it first appears or changes, not on every scrape, and a
+// recovery is logged once. Otherwise a broken host fills the journal with one line per scrape.
+func TestDiscoveryErrorIsLoggedOnlyOnChange(t *testing.T) {
+	var current error
+	c := NewCgroupCollector(func() ([]discovery.Unit, error) { return nil, current })
+	buf := captureLog(t)
+
+	scrape := func() { testutil.CollectAndCount(c) }
+	count := func(s string) int { return strings.Count(buf.String(), s) }
+
+	current = errors.New("no cgroup tree")
+	scrape()
+	scrape()
+	scrape()
+	if n := count("Unit discovery failed: no cgroup tree"); n != 1 {
+		t.Errorf("same error over 3 scrapes logged %d times, want 1:\n%s", n, buf)
+	}
+
+	current = errors.New("permission denied")
+	scrape()
+	scrape()
+	if n := count("Unit discovery failed: permission denied"); n != 1 {
+		t.Errorf("changed error logged %d times, want 1:\n%s", n, buf)
+	}
+
+	current = nil
+	scrape()
+	scrape()
+	if n := count("Unit discovery recovered"); n != 1 {
+		t.Errorf("recovery logged %d times, want 1:\n%s", n, buf)
+	}
+
+	// A new failure after a recovery is news again, even with the same text as before.
+	current = errors.New("permission denied")
+	scrape()
+	if n := count("Unit discovery failed: permission denied"); n != 2 {
+		t.Errorf("failure after recovery logged %d times in total, want 2:\n%s", n, buf)
+	}
+}
+
+// A healthy host never logs anything about discovery.
+func TestHealthyDiscoveryLogsNothing(t *testing.T) {
+	c := NewCgroupCollector(fakeDiscover)
+	buf := captureLog(t)
+	testutil.CollectAndCount(c)
+	testutil.CollectAndCount(c)
+	if strings.Contains(buf.String(), "discovery") {
+		t.Errorf("healthy discovery logged:\n%s", buf)
+	}
+}
+
+// Prometheus can scrape twice at once; the remembered error must be safe to share. Run with -race.
+func TestConcurrentScrapesAreRaceFree(t *testing.T) {
+	n := 0
+	var mu sync.Mutex
+	c := NewCgroupCollector(func() ([]discovery.Unit, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		n++
+		if n%2 == 0 {
+			return nil, errors.New("flaky")
+		}
+		return nil, nil
+	})
+	captureLog(t)
+
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 20; j++ {
+				testutil.CollectAndCount(c)
+			}
+		}()
+	}
+	wg.Wait()
+}
 
 // A failed discovery exports no unit series, but the health gauge says why the scrape is empty.
 func TestCollectDiscoveryError(t *testing.T) {
