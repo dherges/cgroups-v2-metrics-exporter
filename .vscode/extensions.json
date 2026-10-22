@@ -4,6 +4,6 @@
     "esbenp.prettier-vscode",
     "davidanson.vscode-markdownlint",
     "github.vscode-pull-request-github",
-    "golang.go",
+    "golang.go"
   ]
 }
