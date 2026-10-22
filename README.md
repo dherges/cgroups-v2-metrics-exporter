@@ -76,7 +76,7 @@ resource metrics for services running in non-root, user-scoped sandboxes.
 ### 🔍 Why It Exists in the First Place
 
 An (intentional) gap in the OpenTelemetry `host_metrics` and `systemd` receivers, see
-[OpenTelemetry Collector Contrib - Issue #50035](https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/45912).
+[OpenTelemetry Collector Contrib - Issue #50035](https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/50035).
 
 - The `systemd` receiver scrapes unit state (active, failed, ...), not resource usage.
 - The `host_metrics` receiver reads `/proc` and fails in an unprivileged, user-scoped agent.
