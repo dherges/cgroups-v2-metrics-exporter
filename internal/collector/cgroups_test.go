@@ -246,6 +246,37 @@ func TestCollectToleratesMissingControllersAndBrokenFiles(t *testing.T) {
 	}
 }
 
+// A unit name that is not valid UTF-8 cannot be a label value. That unit is skipped, and the units
+// around it are still exported instead of the whole scrape failing.
+func TestCollectSkipsUnitWithInvalidLabel(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, map[string]string{
+		"a/cpu.stat": "usage_usec 1000000\n",
+		"b/cpu.stat": "usage_usec 2000000\n",
+		"c/cpu.stat": "usage_usec 3000000\n",
+	})
+	discover := func() ([]discovery.Unit, error) {
+		return []discovery.Unit{
+			{Name: "first.service", Path: filepath.Join(root, "a"), UID: "7"},
+			{Name: "bad\xff.service", Path: filepath.Join(root, "b"), UID: "7"},
+			{Name: "last.service", Path: filepath.Join(root, "c"), UID: "7"},
+		}, nil
+	}
+
+	got := gather(t, NewCgroupCollector(discover))
+
+	u := func(name string) string { return "{systemd_user_uid=7,systemd_user_unit=" + name + "}" }
+	checkSamples(t, got, map[string]float64{
+		"cgroups_v2_cpu_usage_seconds_total" + u("first.service"): 1,
+		"cgroups_v2_cpu_usage_seconds_total" + u("last.service"):  3,
+	})
+	for k := range got {
+		if strings.Contains(k, "bad") {
+			t.Errorf("unexpected sample %q for a unit with an invalid label", k)
+		}
+	}
+}
+
 // Hosts without cgroups v2 or without a user manager: discovery fails, the scrape succeeds empty.
 func TestCollectWithoutCgroupsV2(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "does-not-exist")

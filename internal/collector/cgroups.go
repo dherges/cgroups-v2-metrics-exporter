@@ -110,16 +110,16 @@ func (c *CgroupCollector) collectCPU(ch chan<- prometheus.Metric, u discovery.Un
 	if s, err := cgroupfs.ReadCPUStat(u.Path); err != nil {
 		logReadError(u, "cpu.stat", err)
 	} else {
-		ch <- prometheus.MustNewConstMetric(c.cpuUsage, prometheus.CounterValue, float64(s.UsageUsec)/1e6, u.UID, u.Name)
-		ch <- prometheus.MustNewConstMetric(c.cpuPeriods, prometheus.CounterValue, float64(s.NrPeriods), u.UID, u.Name)
-		ch <- prometheus.MustNewConstMetric(c.cpuThrottled, prometheus.CounterValue, float64(s.NrThrottled), u.UID, u.Name)
-		ch <- prometheus.MustNewConstMetric(c.cpuThrottledSec, prometheus.CounterValue, float64(s.ThrottledUsec)/1e6, u.UID, u.Name)
+		emit(ch, c.cpuUsage, prometheus.CounterValue, float64(s.UsageUsec)/1e6, u.UID, u.Name)
+		emit(ch, c.cpuPeriods, prometheus.CounterValue, float64(s.NrPeriods), u.UID, u.Name)
+		emit(ch, c.cpuThrottled, prometheus.CounterValue, float64(s.NrThrottled), u.UID, u.Name)
+		emit(ch, c.cpuThrottledSec, prometheus.CounterValue, float64(s.ThrottledUsec)/1e6, u.UID, u.Name)
 	}
 
 	if m, err := cgroupfs.ReadCPUMax(u.Path); err != nil {
 		logReadError(u, "cpu.max", err)
 	} else if !m.Unlimited {
-		ch <- prometheus.MustNewConstMetric(c.cpuLimitCores, prometheus.GaugeValue, m.CPUs(), u.UID, u.Name)
+		emit(ch, c.cpuLimitCores, prometheus.GaugeValue, m.CPUs(), u.UID, u.Name)
 	}
 }
 
@@ -127,8 +127,8 @@ func (c *CgroupCollector) collectMemory(ch chan<- prometheus.Metric, u discovery
 	if m, err := cgroupfs.ReadMemory(u.Path); err != nil {
 		logReadError(u, "memory.current", err)
 	} else {
-		ch <- prometheus.MustNewConstMetric(c.memoryUsage, prometheus.GaugeValue, float64(m.Current), u.UID, u.Name)
-		ch <- prometheus.MustNewConstMetric(c.memoryWorkingSet, prometheus.GaugeValue, float64(m.WorkingSet), u.UID, u.Name)
+		emit(ch, c.memoryUsage, prometheus.GaugeValue, float64(m.Current), u.UID, u.Name)
+		emit(ch, c.memoryWorkingSet, prometheus.GaugeValue, float64(m.WorkingSet), u.UID, u.Name)
 	}
 
 	for _, l := range []struct {
@@ -139,7 +139,7 @@ func (c *CgroupCollector) collectMemory(ch chan<- prometheus.Metric, u discovery
 		if err != nil {
 			logReadError(u, l.file, err)
 		} else if !unlimited {
-			ch <- prometheus.MustNewConstMetric(l.desc, prometheus.GaugeValue, float64(v), u.UID, u.Name)
+			emit(ch, l.desc, prometheus.GaugeValue, float64(v), u.UID, u.Name)
 		}
 	}
 
@@ -147,7 +147,7 @@ func (c *CgroupCollector) collectMemory(ch chan<- prometheus.Metric, u discovery
 		logReadError(u, "memory.events", err)
 	} else {
 		for event, v := range events {
-			ch <- prometheus.MustNewConstMetric(c.memoryEvents, prometheus.CounterValue, float64(v), u.UID, u.Name, event)
+			emit(ch, c.memoryEvents, prometheus.CounterValue, float64(v), u.UID, u.Name, event)
 		}
 	}
 }
@@ -156,13 +156,13 @@ func (c *CgroupCollector) collectPids(ch chan<- prometheus.Metric, u discovery.U
 	if v, err := cgroupfs.ReadUint(u.Path, "pids.current"); err != nil {
 		logReadError(u, "pids.current", err)
 	} else {
-		ch <- prometheus.MustNewConstMetric(c.pidsCurrent, prometheus.GaugeValue, float64(v), u.UID, u.Name)
+		emit(ch, c.pidsCurrent, prometheus.GaugeValue, float64(v), u.UID, u.Name)
 	}
 
 	if v, unlimited, err := cgroupfs.ReadLimit(u.Path, "pids.max"); err != nil {
 		logReadError(u, "pids.max", err)
 	} else if !unlimited {
-		ch <- prometheus.MustNewConstMetric(c.pidsLimit, prometheus.GaugeValue, float64(v), u.UID, u.Name)
+		emit(ch, c.pidsLimit, prometheus.GaugeValue, float64(v), u.UID, u.Name)
 	}
 }
 
@@ -173,11 +173,22 @@ func (c *CgroupCollector) collectIO(ch chan<- prometheus.Metric, u discovery.Uni
 		return
 	}
 	for _, d := range devices {
-		ch <- prometheus.MustNewConstMetric(c.ioReadBytes, prometheus.CounterValue, float64(d.ReadBytes), u.UID, u.Name, d.Device)
-		ch <- prometheus.MustNewConstMetric(c.ioWriteBytes, prometheus.CounterValue, float64(d.WriteBytes), u.UID, u.Name, d.Device)
-		ch <- prometheus.MustNewConstMetric(c.ioReadOps, prometheus.CounterValue, float64(d.ReadOps), u.UID, u.Name, d.Device)
-		ch <- prometheus.MustNewConstMetric(c.ioWriteOps, prometheus.CounterValue, float64(d.WriteOps), u.UID, u.Name, d.Device)
+		emit(ch, c.ioReadBytes, prometheus.CounterValue, float64(d.ReadBytes), u.UID, u.Name, d.Device)
+		emit(ch, c.ioWriteBytes, prometheus.CounterValue, float64(d.WriteBytes), u.UID, u.Name, d.Device)
+		emit(ch, c.ioReadOps, prometheus.CounterValue, float64(d.ReadOps), u.UID, u.Name, d.Device)
+		emit(ch, c.ioWriteOps, prometheus.CounterValue, float64(d.WriteOps), u.UID, u.Name, d.Device)
 	}
+}
+
+// emit sends one const metric. A series that cannot be built (a label value that is not valid
+// UTF-8, a wrong label count) is logged and skipped, so one bad unit never fails the whole scrape.
+func emit(ch chan<- prometheus.Metric, desc *prometheus.Desc, typ prometheus.ValueType, v float64, labels ...string) {
+	m, err := prometheus.NewConstMetric(desc, typ, v, labels...)
+	if err != nil {
+		log.Printf("Skipping a series: %v", err)
+		return
+	}
+	ch <- m
 }
 
 // logReadError skips the metrics of one file. A missing file is expected when the unit stopped
