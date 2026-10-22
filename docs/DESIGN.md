@@ -1,8 +1,7 @@
 cgroups-v2-metrics-exporter
 ===========================
 
-> Like Pod metrics, from systemd user sandboxes.
->
+> Like Pod metrics for systemd user sandboxes.
 
 This metrics exporter collects resource utilization metrics such as cpu and memory footprint from systemd user units.
 
@@ -52,7 +51,7 @@ In addition, correlating the process level metrics with metrics of the parent sy
 
 In short: an (intentional) gap in OpenTelemetry `host_metrics` and/or `systemd` receiver.
 
-This exporter acts as a working reference implementation to solve the bottleneck outlined in [OpenTelemetry Collector Contrib - Issue #50035](https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/45912).
+This exporter acts as a working reference implementation to solve the bottleneck outlined in [OpenTelemetry Collector Contrib - Issue #50035](https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/50035).
 When running the OpenTelemetry Collector agent in user scope (non-root), it fails to collect metrics at the process level (because of UID isolation).
 
 This exporter bypasses the limitation at the process level,
@@ -67,9 +66,13 @@ without requiring root privileges.
 - __Unprivileged Scraping__:
   Collects metrics for systemd user units matching the current user's ID (`id -u`).
 - __Resource Utilization Metrics__:
-  Scrapes metrics of compute resources, currently
-  - CPU: `cpu.stat` metrics (tbd)
-  - Memory: `memory.current` metrics (tbd)
+  Scrapes metrics of compute resources (see the "Metrics Series Reference" in the README for the full list):
+  - CPU: usage, enforcement periods, throttling and quota (`cpu.stat`, `cpu.max`)
+  - Memory: usage, working set, limits and events (`memory.current`, `memory.stat`, `memory.max`, `memory.high`, `memory.events`)
+  - Pids: current and limit (`pids.current`, `pids.max`)
+  - IO: bytes and operations per block device (`io.stat`)
+- __Exporter Health__:
+  `cgroups_v2_discovery_success` tells whether the cgroup tree could be listed, next to the standard Go runtime, process and `build_info` series.
 
 ### ⚡ Non-Functional Requirements (NFRs)
 
@@ -78,13 +81,11 @@ Therefore, collection of metrics is pull-based and values reflect the last known
 
 - __Point-in-Time Metrics__:
   Pseudo-files under `/sys/fs/cgroup/` are only read when an HTTP scrape request arrives.
-- __Abuse Protection__ (Optional):
-  If a subsequent scrape occurs within the TTL window, the exporter serves the last known value from memory instead of re-reading the kernel.
-
-Benefit:
-to minimize kernel I/O and reduce kernel-context-switch overhead,
-the export may (optionally) implement an on-demand cache with a short TTL (e.g., 2-5 seconds),
-thus offering basic protection against accidental high-frequency scrape intervals.
+- __No Caching__:
+  Every scrape rediscovers the units and re-reads their files.
+  That costs one directory listing plus a few small reads per unit.
+  An on-demand cache with a short TTL (e.g., 2-5 seconds) as protection against accidental high-frequency scrape intervals was considered and left out for now.
+  Revisit it if the scrape duration (not measured yet) turns out to be a problem.
 
 
 ## 🎯 Current Scope & Known Limitations
@@ -98,10 +99,14 @@ The `cgroups-v2-metrics-exporter` implements the discovery of systemd units in a
    - Scan for unit names in the `app.slice` of the current user: `/sys/fs/cgroup/user.slice/user-$(id -u).slice/user@$(id -u).service/app.slice/<unit_name>.service/`
    - Locate the cgroups v2 tracking files for the discovered units
 2. Register a metrics [Collector](https://pkg.go.dev/github.com/prometheus/client_golang/prometheus#Collector) with the Prometheus [Registry](https://pkg.go.dev/github.com/prometheus/client_golang/prometheus#Registry)
-   - Attach labels for `{systemd_user_uid="<uid>", systemd_user_unit="<unit_name>"}` to the metrics series
-3. Expose the registered metrics series in Prometheus Exposition Format for HTTP-scraping at `http://127.0.0.1:9100/metrics`
+   - Attach labels for `{systemd_user_uid="<uid>", systemd_user_unit="<unit_name>"}` to the metrics series.
+     The unit name is the cgroup directory name exactly as systemd escapes it (e.g. `my\x2dapp.service`), as `systemctl --user` prints it.
+     Unescaping it would map distinct units to the same label.
+3. Expose the registered metrics series in Prometheus Exposition Format for HTTP-scraping at `http://127.0.0.1:10060/metrics` (the default; loopback only, change it with `--host` and `--port`)
 
-It only discovers user units on startup (for the time being).
+Units are rediscovered on every scrape, so units that start, stop or restart show up on the next scrape.
+Only direct `*.service` children of `app.slice` are covered.
+Template instances in nested slices, `session.slice` and `background.slice` are not (not yet checked on a real host).
 
 
 ## 🎨 Future Scope
