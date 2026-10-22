@@ -16,10 +16,18 @@ func TestGetConfig(t *testing.T) {
 		wantCgroup string
 	}{
 		{
+			// Loopback only, and not 9100, which belongs to node_exporter.
 			name:       "Default values when no env or flags are provided",
 			envVars:    map[string]string{},
 			args:       []string{},
-			wantListen: "0.0.0.0:9100",
+			wantListen: "127.0.0.1:10060",
+			wantCgroup: "",
+		},
+		{
+			name:       "Listening on all interfaces needs an explicit host",
+			envVars:    map[string]string{},
+			args:       []string{"--host", "0.0.0.0"},
+			wantListen: "0.0.0.0:10060",
 			wantCgroup: "",
 		},
 		{

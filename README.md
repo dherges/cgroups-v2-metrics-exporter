@@ -11,23 +11,25 @@ A Prometheus exporter for the cgroups v2 resource usage (CPU, memory, pids, IO) 
 Run the cgroups v2 metrics exporter in user land:
 
 ```bash
-./cgroups-v2-metrics-exporter --host 127.0.0.1 --port 9100
+./cgroups-v2-metrics-exporter
 ```
 
-Scrape Prometheus metrics at `http://127.0.0.1:9100/metrics`
+Scrape Prometheus metrics at `http://127.0.0.1:10060/metrics`
 
 ### Options
 
 | Flag | Environment variables | Default | Description |
 |------|-----------------------|---------|-------------|
-| `--host` | `METRICS_HOST`, `HOST` | `0.0.0.0` | IP address/host to listen on |
-| `--port` | `METRICS_PORT`, `PORT` | `9100` | Port to expose the metrics on |
+| `--host` | `METRICS_HOST`, `HOST` | `127.0.0.1` | IP address/host to listen on |
+| `--port` | `METRICS_PORT`, `PORT` | `10060` | Port to expose the metrics on |
 | `--cgroup-base-path` | `METRICS_CGROUP_BASE_PATH`, `CGROUP_BASE_PATH` | derived from the process uid | Override the cgroups v2 base directory (testing, Codespaces) |
 
 The flag default is taken from the environment variable, so an explicit flag wins. `METRICS_*` takes precedence over the plain name.
 
 > [!NOTE]
-> The default `0.0.0.0` exposes the unauthenticated metrics on all interfaces. Pass `--host 127.0.0.1` (as above) unless a remote Prometheus needs to scrape it directly.
+> The endpoint has no authentication, so it listens on loopback only by default. A Prometheus on another machine needs `--host 0.0.0.0` (or the address of one interface), ideally behind a firewall or a reverse proxy.
+>
+> The default port is not 9100: that is node_exporter's port and it is usually taken on the same host. If several users on one host run the exporter, give each its own `--port`.
 
 By default the cgroup base is `/sys/fs/cgroup/user.slice/user-<uid>.slice/user@<uid>.service`, where `<uid>` is the uid the exporter runs as.
 

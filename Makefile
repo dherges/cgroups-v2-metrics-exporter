@@ -5,7 +5,7 @@ FAKE_DATA_DIR := $(PWD)/fake-data
 TARGET := cgroups-v2-metrics-exporter
 
 LOCAL_HOST ?= 127.0.0.1
-LOCAL_PORT ?= 9100
+LOCAL_PORT ?= 10060
 
 build:
 	@echo "=== Compiling $(TARGET) ==="
