@@ -5,7 +5,9 @@
 package cgroupfs
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -102,8 +104,6 @@ func ParseCPUMax(content string) (CPUMax, error) {
 // CPUStat holds the fields of cpu.stat used for metrics. Counters are monotonic.
 type CPUStat struct {
 	UsageUsec     uint64
-	UserUsec      uint64
-	SystemUsec    uint64
 	NrPeriods     uint64
 	NrThrottled   uint64
 	ThrottledUsec uint64
@@ -123,8 +123,6 @@ func ParseCPUStat(content string) (CPUStat, error) {
 	}
 	return CPUStat{
 		UsageUsec:     usage,
-		UserUsec:      kv["user_usec"],
-		SystemUsec:    kv["system_usec"],
 		NrPeriods:     kv["nr_periods"],
 		NrThrottled:   kv["nr_throttled"],
 		ThrottledUsec: kv["throttled_usec"],
@@ -199,7 +197,7 @@ func ReadMemory(dir string) (Memory, error) {
 		if stat, err = ParseKeyed(content); err != nil {
 			return Memory{}, fmt.Errorf("%s/memory.stat: %w", dir, err)
 		}
-	} else if !os.IsNotExist(err) {
+	} else if !errors.Is(err, fs.ErrNotExist) {
 		return Memory{}, err
 	}
 

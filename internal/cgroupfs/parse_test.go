@@ -158,8 +158,6 @@ func TestReadFixtureA(t *testing.T) {
 	}
 	want := CPUStat{
 		UsageUsec:     522428541,
-		UserUsec:      335361084,
-		SystemUsec:    187067457,
 		NrPeriods:     849370,
 		NrThrottled:   2,
 		ThrottledUsec: 15500,
