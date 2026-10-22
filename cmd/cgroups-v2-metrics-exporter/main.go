@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"cgroups-v2-metrics-exporter/internal/collector"
@@ -38,12 +39,7 @@ func main() {
 	log.Printf("Discovering systemd user units...")
 	logStartup(resolve)
 
-	registry := prometheus.NewRegistry()
-	if err := registry.Register(collector.NewCgroupCollector(discover)); err != nil {
-		log.Fatalf("Failed to register metrics collector: %v", err)
-	}
-
-	srv := newServer(conf.ListenAddr, registry)
+	srv := newServer(conf.ListenAddr, newRegistry(discover))
 	log.Printf("Starting Metrics Exporter on %s...", conf.ListenAddr)
 	if err := srv.ListenAndServe(); err != nil {
 		log.Fatalf("Metrics Exporter failed to start: %v", err)
@@ -68,6 +64,20 @@ func logStartup(resolve resolveFunc) {
 	if len(missing) > 0 {
 		log.Printf("Warning: controllers %v are not delegated to the user manager, their metrics will be missing (see README: Delegate=cpu memory pids io)", missing)
 	}
+}
+
+// newRegistry returns the registry served on /metrics: the unit collector plus the exporter's own
+// Go runtime, process and build_info series, so its memory, CPU and version can be monitored too.
+// It uses its own registry rather than the global default, so nothing else can add series to it.
+func newRegistry(discover collector.DiscoverFunc) *prometheus.Registry {
+	registry := prometheus.NewRegistry()
+	registry.MustRegister(
+		collector.NewCgroupCollector(discover),
+		collectors.NewGoCollector(),
+		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
+		collectors.NewBuildInfoCollector(),
+	)
+	return registry
 }
 
 // newServer builds the HTTP server on its own mux, so nothing registered on http.DefaultServeMux

@@ -11,15 +11,37 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/prometheus/client_golang/prometheus"
-
-	"cgroups-v2-metrics-exporter/internal/collector"
 	"cgroups-v2-metrics-exporter/internal/discovery"
 )
 
+// The exporter exposes its own health next to the unit series, so a missing process or build_info
+// series is noticed instead of guessed at.
+func TestNewRegistry(t *testing.T) {
+	registry := newRegistry(func() ([]discovery.Unit, error) { return nil, nil })
+
+	families, err := registry.Gather()
+	if err != nil {
+		t.Fatal(err)
+	}
+	have := map[string]bool{}
+	for _, f := range families {
+		have[f.GetName()] = true
+	}
+	for _, want := range []string{
+		"cgroups_v2_discovery_success",  // the unit collector
+		"go_goroutines",                 // Go runtime
+		"process_resident_memory_bytes", // the exporter's own memory
+		"process_cpu_seconds_total",     // the exporter's own CPU
+		"go_build_info",                 // which build is running
+	} {
+		if !have[want] {
+			t.Errorf("registry has no %s", want)
+		}
+	}
+}
+
 func TestNewServer(t *testing.T) {
-	registry := prometheus.NewRegistry()
-	registry.MustRegister(collector.NewCgroupCollector(func() ([]discovery.Unit, error) { return nil, nil }))
+	registry := newRegistry(func() ([]discovery.Unit, error) { return nil, nil })
 
 	srv := newServer("127.0.0.1:0", registry)
 
