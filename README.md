@@ -109,8 +109,17 @@ sudo mkdir -p /etc/systemd/system/user@.service.d/
 # Add the delegation configuration
 cat <<EOF | sudo tee /etc/systemd/system/user@.service.d/override.conf
 [Service]
-Delegate=cpu memory pids
+Delegate=cpu memory pids io
 EOF
+```
+
+Each delegated controller feeds one group of metrics: `cpu` the `cgroups_v2_cpu_*` series, `memory` the `cgroups_v2_memory_*` series, `pids` the `cgroups_v2_pids_*` series and `io` the `cgroups_v2_io_*` series.
+A controller that is not delegated only drops its own series. The exporter logs a warning at startup and keeps running.
+
+Check what is delegated to your user manager:
+
+```bash
+cat /sys/fs/cgroup/user.slice/user-$(id -u).slice/user@$(id -u).service/cgroup.controllers
 ```
 
 ### Apply Systemd Changes

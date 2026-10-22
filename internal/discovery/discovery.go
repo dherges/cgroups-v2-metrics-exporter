@@ -16,8 +16,10 @@ const (
 	cgroupMount = "/sys/fs/cgroup"
 )
 
-// RequiredControllers must be delegated to the user manager to expose cpu and memory metrics.
-var RequiredControllers = []string{"cpu", "memory"}
+// RequiredControllers must be delegated to the user manager to expose all metrics: cpu for the
+// cpu series, memory for the memory series, pids for the pids series and io for the io series.
+// A missing controller only drops its own series; the exporter still starts.
+var RequiredControllers = []string{"cpu", "memory", "pids", "io"}
 
 // UserCgroupInfo describes the cgroup subtree of the systemd user manager (user@<uid>.service).
 type UserCgroupInfo struct {

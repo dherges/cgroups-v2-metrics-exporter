@@ -29,7 +29,7 @@ func main() {
 		if missing, err := userInfo.MissingControllers(); err != nil {
 			log.Printf("Warning: cannot check delegated cgroup controllers: %v", err)
 		} else if len(missing) > 0 {
-			log.Printf("Warning: controllers %v are not delegated to the user manager (see README: Delegate=cpu memory pids)", missing)
+			log.Printf("Warning: controllers %v are not delegated to the user manager, their metrics will be missing (see README: Delegate=cpu memory pids io)", missing)
 		}
 	}
 

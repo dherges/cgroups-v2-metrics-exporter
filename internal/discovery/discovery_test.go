@@ -193,9 +193,11 @@ func TestMissingControllers(t *testing.T) {
 		want        []string
 		wantErr     bool
 	}{
-		{name: "all delegated", controllers: "cpu memory pids\n", want: nil},
-		{name: "memory missing", controllers: "cpu pids\n", want: []string{"memory"}},
-		{name: "none delegated", controllers: "\n", want: []string{"cpu", "memory"}},
+		// The real cgroup.controllers of a host: extra controllers (cpuset) are ignored.
+		{name: "all delegated", controllers: "cpuset cpu io memory pids\n", want: nil},
+		{name: "memory missing", controllers: "cpu pids io\n", want: []string{"memory"}},
+		{name: "io missing", controllers: "cpu memory pids\n", want: []string{"io"}},
+		{name: "none delegated", controllers: "\n", want: []string{"cpu", "memory", "pids", "io"}},
 		{name: "file missing", wantErr: true},
 	}
 	for _, tt := range tests {
