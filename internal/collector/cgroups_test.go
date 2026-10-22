@@ -162,11 +162,27 @@ func TestRegisters(t *testing.T) {
 	}
 }
 
+const discoverySuccess = "cgroups_v2_discovery_success{}"
+
+// A failed discovery exports no unit series, but the health gauge says why the scrape is empty.
 func TestCollectDiscoveryError(t *testing.T) {
 	c := NewCgroupCollector(func() ([]discovery.Unit, error) { return nil, errors.New("boom") })
-	if n := testutil.CollectAndCount(c); n != 0 {
-		t.Errorf("got %d metrics, want 0", n)
+	got := gather(t, c)
+	if len(got) != 1 || got[discoverySuccess] != 0 {
+		t.Errorf("got %v, want only %s = 0", got, discoverySuccess)
 	}
+}
+
+// Discovery worked, even with no units running: the gauge is 1 and the unit series are absent.
+func TestDiscoverySuccessGauge(t *testing.T) {
+	none := gather(t, NewCgroupCollector(func() ([]discovery.Unit, error) { return nil, nil }))
+	if len(none) != 1 || none[discoverySuccess] != 1 {
+		t.Errorf("no units: got %v, want only %s = 1", none, discoverySuccess)
+	}
+
+	got := gather(t, NewCgroupCollector(fakeDiscover))
+	checkSamples(t, got, map[string]float64{discoverySuccess: 1})
+	checkSamples(t, got, map[string]float64{"cgroups_v2_cpu_usage_seconds_total" + ua: 522.428541})
 }
 
 // writeTree creates files below root: a map of "unit/file" to content.
@@ -283,8 +299,8 @@ func TestCollectWithoutCgroupsV2(t *testing.T) {
 	info := &discovery.UserCgroupInfo{UID: "1", BaseCpath: missing}
 	c := NewCgroupCollector(info.Discover)
 
-	if n := testutil.CollectAndCount(c); n != 0 {
-		t.Errorf("got %d metrics, want 0", n)
+	if got := gather(t, c); len(got) != 1 || got[discoverySuccess] != 0 {
+		t.Errorf("got %v, want only %s = 0", got, discoverySuccess)
 	}
 	// And it still serves a valid exposition.
 	if _, err := prometheus.NewRegistry().Gather(); err != nil {
@@ -307,8 +323,9 @@ func TestCollectFollowsUnitChanges(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(root, "app.slice"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if n := testutil.CollectAndCount(c); n != 0 {
-		t.Fatalf("before start: %d metrics, want 0", n)
+	// The discovery gauge is always there: 1 metric means no unit series.
+	if n := testutil.CollectAndCount(c); n != 1 {
+		t.Fatalf("before start: %d metrics, want 1", n)
 	}
 
 	if err := os.MkdirAll(unit, 0o755); err != nil {
@@ -320,14 +337,14 @@ func TestCollectFollowsUnitChanges(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(unit, "memory.current"), []byte("1\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if n := testutil.CollectAndCount(c); n != 6 {
-		t.Fatalf("after start: %d metrics, want 6", n)
+	if n := testutil.CollectAndCount(c); n != 7 {
+		t.Fatalf("after start: %d metrics, want 7", n)
 	}
 
 	if err := os.RemoveAll(unit); err != nil {
 		t.Fatal(err)
 	}
-	if n := testutil.CollectAndCount(c); n != 0 {
-		t.Errorf("after stop: %d metrics, want 0", n)
+	if n := testutil.CollectAndCount(c); n != 1 {
+		t.Errorf("after stop: %d metrics, want 1", n)
 	}
 }

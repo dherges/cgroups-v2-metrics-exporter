@@ -27,9 +27,11 @@ var (
 // controller that is not delegated, a unit that stopped after discovery) or an unreadable one only
 // drops the metrics derived from that file. Limits set to "max" are omitted instead of being
 // exported with a made-up value. If discovery fails (no cgroup v2, no user manager) the scrape
-// simply returns no unit metrics.
+// returns no unit metrics, and cgroups_v2_discovery_success is 0 so that this is visible.
 type CgroupCollector struct {
 	discover DiscoverFunc
+
+	discoverySuccess *prometheus.Desc
 
 	cpuUsage        *prometheus.Desc
 	cpuPeriods      *prometheus.Desc
@@ -59,6 +61,8 @@ func NewCgroupCollector(discover DiscoverFunc) *CgroupCollector {
 	return &CgroupCollector{
 		discover: discover,
 
+		discoverySuccess: desc("cgroups_v2_discovery_success", "Whether the user's cgroup tree could be listed in this scrape: 1 if yes, 0 if not. When 0, no unit series are exported.", nil),
+
 		cpuUsage:        desc("cgroups_v2_cpu_usage_seconds_total", "Cumulative CPU time consumed by the unit (cpu.stat usage_usec).", unitLabels),
 		cpuPeriods:      desc("cgroups_v2_cpu_periods_total", "Enforcement periods elapsed for the unit (cpu.stat nr_periods).", unitLabels),
 		cpuThrottled:    desc("cgroups_v2_cpu_throttled_periods_total", "Periods in which the unit was throttled (cpu.stat nr_throttled).", unitLabels),
@@ -83,6 +87,7 @@ func NewCgroupCollector(discover DiscoverFunc) *CgroupCollector {
 
 func (c *CgroupCollector) Describe(ch chan<- *prometheus.Desc) {
 	for _, d := range []*prometheus.Desc{
+		c.discoverySuccess,
 		c.cpuUsage, c.cpuPeriods, c.cpuThrottled, c.cpuThrottledSec, c.cpuLimitCores,
 		c.memoryWorkingSet, c.memoryUsage, c.memoryLimit, c.memoryHigh, c.memoryEvents,
 		c.pidsCurrent, c.pidsLimit,
@@ -96,8 +101,10 @@ func (c *CgroupCollector) Collect(ch chan<- prometheus.Metric) {
 	units, err := c.discover()
 	if err != nil {
 		log.Printf("Unit discovery failed: %v", err)
+		emit(ch, c.discoverySuccess, prometheus.GaugeValue, 0)
 		return
 	}
+	emit(ch, c.discoverySuccess, prometheus.GaugeValue, 1)
 	for _, u := range units {
 		c.collectCPU(ch, u)
 		c.collectMemory(ch, u)
