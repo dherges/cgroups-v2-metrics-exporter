@@ -49,7 +49,8 @@ In addition, correlating the process level metrics with metrics of the parent sy
 
 ### 🔍 Why It Exists in the First Place
 
-In short: an (intentional) gap in OpenTelemetry `host_metrics` and/or `systemd` receiver.
+In short: a gap in the OpenTelemetry `host_metrics` and `systemd` receivers.
+The `systemd` receiver exports unit state, CPU time and memory usage and peak ([#44646](https://github.com/open-telemetry/opentelemetry-collector-contrib/pull/44646), [#50209](https://github.com/open-telemetry/opentelemetry-collector-contrib/pull/50209)), but no pids, io, limits or memory events yet.
 
 This exporter acts as a working reference implementation to solve the bottleneck outlined in [OpenTelemetry Collector Contrib - Issue #50035](https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/50035).
 When running the OpenTelemetry Collector agent in user scope (non-root), it fails to collect metrics at the process level (because of UID isolation).

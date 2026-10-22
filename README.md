@@ -5,6 +5,10 @@ cgroups-v2-metrics-exporter
 
 A Prometheus exporter for the cgroups v2 resource usage (CPU, memory, pids, IO) of systemd user units.
 
+> [!NOTE]
+> This is a proof of concept for [OpenTelemetry Collector Contrib - Issue #50035](https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/50035), not a production-grade exporter.
+> It has no releases, and its scrape cost has not been measured.
+
 
 ## 🚀 Getting Started
 
@@ -77,10 +81,11 @@ resource metrics for services running in non-root, user-scoped sandboxes.
 
 ### 🔍 Why It Exists in the First Place
 
-An (intentional) gap in the OpenTelemetry `host_metrics` and `systemd` receivers, see
+A gap in the OpenTelemetry `host_metrics` and `systemd` receivers, see
 [OpenTelemetry Collector Contrib - Issue #50035](https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/50035).
 
-- The `systemd` receiver scrapes unit state (active, failed, ...), not resource usage.
+- The `systemd` receiver exports unit state, CPU time and memory usage and peak, but no pids, io, limits or memory events yet
+  (see [#44646](https://github.com/open-telemetry/opentelemetry-collector-contrib/pull/44646) and [#50209](https://github.com/open-telemetry/opentelemetry-collector-contrib/pull/50209)).
 - The `host_metrics` receiver reads `/proc` and fails in an unprivileged, user-scoped agent.
 
 This exporter reads the user's own cgroup files (`cpu.stat`, `memory.current`, ...) instead,
